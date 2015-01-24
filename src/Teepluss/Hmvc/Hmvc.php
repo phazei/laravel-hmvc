@@ -1,5 +1,6 @@
 <?php namespace Teepluss\Hmvc;
 
+use App;
 use Guzzle\Http\Client;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
@@ -42,10 +43,10 @@ class Hmvc {
     /**
      * Instance Hmvc.
      *
-     * @param arary   $config
+     * @param array   $config
      * @param Router  $router
      * @param Request $request
-     * @param Client  $remote
+     * @param Client  $remoteClient
      */
     public function __construct($config, Router $router, Request $request, Client $remoteClient)
     {
@@ -75,6 +76,9 @@ class Hmvc {
      * @param  string $method
      * @param  array  $parameters
      * @return mixed
+     * 
+     * @throws HmvcFatalErrorException
+     * @throws \Exception
      */
     public function invoke($uri, $method, $parameters = array())
     {
@@ -103,7 +107,15 @@ class Hmvc {
             $this->request->replace($request->input());
 
             // Dispatch request.
-            $dispatch = $this->router->dispatch($request);
+            try {
+                $requestError = false;
+                $dispatch = $this->router->dispatch($request);
+            }
+            catch (\Exception $e)
+            {
+                $requestError = $e;
+                $dispatch = App::make('exception')->handleException($requestError);
+            }
 
             if (method_exists($dispatch, 'getOriginalContent'))
             {
