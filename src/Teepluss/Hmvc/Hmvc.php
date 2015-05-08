@@ -1,6 +1,6 @@
 <?php namespace Teepluss\Hmvc;
 
-use Guzzle\Http\Client;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
@@ -35,7 +35,7 @@ class Hmvc {
     /**
      * Remote client.
      *
-     * @var \Guzzle\Http\Client
+     * @var \GuzzleHttp\Client
      */
     protected $remoteClient;
 
@@ -141,7 +141,7 @@ class Hmvc {
     /**
      * Configure remote client for http request.
      *
-     * @param array $configuration
+     * @param array $configurations
      *
      * array
      *(
@@ -150,6 +150,8 @@ class Hmvc {
      *   'headers/X-Foo', 'Bar',                          //custom header
      *   'auth', array('username', 'password', 'Digest'), //custom authentication
      *)
+     *
+     * @return $this
      */
     public function configureRemoteClient($configurations)
     {
@@ -157,9 +159,6 @@ class Hmvc {
         {
             call_user_func_array(array($this->remoteClient, 'setDefaultOption'), array($option, $value));
         }
-
-
-        //sd($this->remoteClient);
 
         return $this;
     }
@@ -169,28 +168,42 @@ class Hmvc {
      *
      * @param  string $uri
      * @param  string $method
-     * @param  array  $parameters
+     * @param  array  $parameters = [[data], [options]]
      * @return mixed
      */
     public function invokeRemote($uri, $method = 'GET', $parameters = array())
     {
         $remoteClient = $this->getRemoteClient();
 
-        // Make request.
-        $request = call_user_func_array(array($remoteClient, $method), array($uri, null, $parameters));
+        //to maintain compatibility, data is the first parameter value
+        list($data, $options) = array_merge($parameters, [], []);
+        if (!empty($data)) {
+            if (($method == "GET") && !isset($options['query'])) {
+                $options['query'] = $data;
+            } elseif (!isset($options['body']) && !isset($options['json'])) {
+                $options['body'] = $data;
+            }
+        }
+        if (!isset($options['verify'])) {
+            $options['verify'] = false;
+        }
 
-        // Ignore all SSL case.
-        $request->getCurlOptions()->set(CURLOPT_SSL_VERIFYHOST, false);
-        $request->getCurlOptions()->set(CURLOPT_SSL_VERIFYPEER, false);
+
+        // Make request.
+        $request = $remoteClient->createRequest($method, $uri, $options);
 
         // Send request.
-        $response = $request->send();
+        $response = $remoteClient->send($request);
 
-        // Body responsed.
+        if (isset($options['future']) && $options['future'] == true) {
+            return $response;
+        }
+
+        // Body response.
         $body = (string) $response->getBody();
 
         // Decode json content.
-        if ($response->getContentType() == 'application/json')
+        if ($response->getHeader('Content-Type') == 'application/json')
         {
             if (function_exists('json_decode') and is_string($body))
             {
@@ -212,13 +225,14 @@ class Hmvc {
         {
             $uri = array_shift($parameters);
 
-            $parameters = current($parameters);
-            $parameters = is_array($parameters) ? $parameters : array();
-
             if (preg_match('/^http(s)?/', $uri))
             {
+                $method = strtoupper($method);
                 return $this->invokeRemote($uri, $method, $parameters);
             }
+
+            $parameters = current($parameters);
+            $parameters = is_array($parameters) ? $parameters : array();
 
             return $this->invoke($uri, $method, $parameters);
         }

@@ -1,6 +1,6 @@
 <?php namespace Teepluss\Hmvc;
 
-use Guzzle\Http\Client;
+use GuzzleHttp\Client;
 use Illuminate\Foundation\AliasLoader;
 use Illuminate\Support\ServiceProvider;
 

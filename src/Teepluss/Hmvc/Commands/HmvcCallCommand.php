@@ -65,7 +65,7 @@ class HmvcCallCommand extends Command {
 			parse_str($parameters, $parameters);
 		}
 
-		// User credentails.
+		// User credentials.
 		$auth = $this->option('user');
 
 		if ($auth)
